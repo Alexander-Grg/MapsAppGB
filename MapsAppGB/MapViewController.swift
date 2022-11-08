@@ -8,9 +8,13 @@
 import UIKit
 import MapKit
 import CoreLocation
+import RealmSwift
 
 class MapViewController: UIViewController {
     var isFollowActive = false
+    var coordinates: [AnnotationRealm] = []
+    var coordinatesFromRealm: Results<AnnotationRealm>?
+    var backgroundTask: UIBackgroundTaskIdentifier = .invalid
     
     private(set) lazy var locationManager: CLLocationManager = {
         let manager = CLLocationManager()
@@ -40,50 +44,141 @@ class MapViewController: UIViewController {
         return buttonItem
     }()
     
+    private(set) lazy var showPreviousRoute: UIButton = {
+        let button = UIButton(configuration: UIButton.Configuration.borderedTinted())
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.setTitle("Show Previous Route", for: .normal)
+        button.addTarget(self, action: #selector(previousRoute), for: .touchUpInside)
+        
+        return button
+    }()
     
     override func viewDidLoad() {
         super.viewDidLoad()
         mapView.delegate = self
         locationManager.delegate = self
-        locationManager.requestWhenInUseAuthorization()
+        locationManager.requestAlwaysAuthorization()
+        locationManager.allowsBackgroundLocationUpdates = true
+        locationManager.startMonitoringSignificantLocationChanges()
+        locationManager.pausesLocationUpdatesAutomatically = false
         configureUI()
     }
     
-    func configureUI() {
+    private func configureUI() {
         navigationItem.leftBarButtonItem = followTheLocationButton
         navigationItem.rightBarButtonItem = currentLocationButton
-        self.view.addSubview(mapView)
-        updateButton()
-        mapView.topAnchor.constraint(equalTo: view.topAnchor).isActive = true
-        mapView.leftAnchor.constraint(equalTo: view.leftAnchor).isActive = true
-        mapView.bottomAnchor.constraint(equalTo: view.bottomAnchor).isActive = true
-        mapView.rightAnchor.constraint(equalTo: view.rightAnchor).isActive = true
+        self.addingSubviews()
+        self.configureConstraints()
+        self.updateButton()
         
     }
     
-    func toTheLocation(_ location: CLLocation, regionRadius: CLLocationDistance = 1000) {
+    private func addingSubviews() {
+        self.view.addSubview(mapView)
+        self.view.addSubview(showPreviousRoute)
+    }
+    
+    private func configureConstraints() {
+        NSLayoutConstraint.activate([
+            mapView.topAnchor.constraint(equalTo: view.topAnchor),
+            mapView.leftAnchor.constraint(equalTo: view.leftAnchor),
+            mapView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            mapView.rightAnchor.constraint(equalTo: view.rightAnchor),
+            
+            showPreviousRoute.topAnchor.constraint(equalTo: view.topAnchor, constant: 0),
+            showPreviousRoute.leftAnchor.constraint(equalTo: view.leftAnchor, constant: 10),
+            showPreviousRoute.rightAnchor.constraint(equalTo: view.rightAnchor, constant: -10)
+            
+        ])
+    }
+    
+    private func toTheLocation(_ location: CLLocation, regionRadius: CLLocationDistance = 1000) {
         let coordinateRegion = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: regionRadius, longitudinalMeters: regionRadius)
         mapView.setRegion(coordinateRegion, animated: true)
     }
     
-    func setTheMark(to location: CLLocation, with title: String?) {
+    private func setTheMark(to location: CLLocation, with title: String?) {
         let mark = MKPointAnnotation()
         mark.title = title
         mark.coordinate = location.coordinate
         //        self.mapView.removeAnnotations(self.mapView.annotations)
         self.mapView.addAnnotation(mark)
+        print(self.mapView.annotations.count)
     }
     
-    func updateToTheCurrentLocation(_ location: CLLocation ) {
+    private func saveToTheRealm(_ items: [AnnotationRealm]) {
+        self.deleteAllDataFromRealm()
+        do {
+            try RealmService.save(items: items)
+        } catch {
+            print("Saving to Realm has been failed")
+        }
+        self.coordinates = []
+    }
+    
+    private func deleteAllDataFromRealm() {
+        do {
+            try RealmService.deleteAll()
+        } catch {
+            print("Deleting from Realm has failed")
+        }
+    }
+    
+    private func loadDataFromTheRealm() {
+        do {
+            self.coordinatesFromRealm = try RealmService.get(type: AnnotationRealm.self)
+        } catch {
+            print("Download from Realm failed")
+        }
+    }
+    
+    private func updateToTheCurrentLocation(_ location: CLLocation ) {
         let viewRegion = MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 200, longitudinalMeters: 200)
         self.mapView.setRegion(viewRegion, animated: true)
     }
     
-    func updateButton() {
+    private func updateButton() {
         if isFollowActive {
             followTheLocationButton.setBackgroundImage(UIImage(systemName: "location.fill.viewfinder"), for: .normal, barMetrics: .default)
         } else {
             followTheLocationButton.setBackgroundImage(UIImage(systemName: "location.viewfinder"), for: .normal, barMetrics: .default)
+        }
+    }
+    
+    private func showAlert() {
+        let alert = UIAlertController(title: "Error", message: "You should cancel tracking", preferredStyle: .alert)
+        let action = UIAlertAction(title: "Ok", style: .default) { action in
+            if self.isFollowActive {
+                self.followUp()
+                self.showTheRouteThatExist()
+            }
+        }
+        
+        alert.addAction(action)
+        present(alert, animated: true)
+    }
+    
+    private func showTheRouteThatExist() {
+        loadDataFromTheRealm()
+        let directionRequest = MKDirections.Request()
+        
+        guard let firstPoint = coordinatesFromRealm?.first,
+              let lastPoint = coordinatesFromRealm?.last
+        else { return }
+        let firstLocation = CLLocationCoordinate2D(latitude: firstPoint.latitude, longitude: firstPoint.longitute)
+        let lastLocation = CLLocationCoordinate2D(latitude: lastPoint.latitude, longitude: lastPoint.longitute)
+        directionRequest.source = MKMapItem(placemark: MKPlacemark(coordinate: firstLocation))
+        directionRequest.destination = MKMapItem(placemark: MKPlacemark(coordinate: lastLocation))
+        directionRequest.transportType = .any
+        let directions = MKDirections(request: directionRequest)
+        
+        directions.calculate { [weak self] response, error in
+            guard let self = self else { return }
+            guard let unwrappedResponse = response else { return }
+            let route = unwrappedResponse.routes[0]
+            self.mapView.addOverlay(route.polyline, level: MKOverlayLevel.aboveRoads)
+            let rect = route.polyline.boundingMapRect
+            self.mapView.setRegion(MKCoordinateRegion(rect), animated: true)
         }
     }
     
@@ -94,22 +189,41 @@ class MapViewController: UIViewController {
     }
     
     @objc func followUp() {
+        if isFollowActive && !self.coordinates.isEmpty {
+            saveToTheRealm(coordinates)
+        }
         isFollowActive.toggle()
         updateButton()
+    }
+    
+    @objc func previousRoute() {
+        if isFollowActive {
+            showAlert()
+        } else {
+            showTheRouteThatExist()
+        }
     }
 }
 
 extension MapViewController: MKMapViewDelegate {
     func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
     }
+    
+    func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+        let renderer = MKPolylineRenderer(polyline: overlay as! MKPolyline)
+        renderer.strokeColor = UIColor.systemBlue
+        renderer.lineWidth = 5
+        return renderer
+    }
 }
 
 extension MapViewController: CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        if isFollowActive {
+        if self.isFollowActive {
             if let lastLocation = locations.last {
-                updateToTheCurrentLocation(lastLocation)
-                setTheMark(to: lastLocation, with: nil)
+                self.updateToTheCurrentLocation(lastLocation)
+                self.coordinates.append(AnnotationRealm(original: AnnotationOriginal(lat: lastLocation.coordinate.latitude, long: lastLocation.coordinate.longitude)))
+                self.setTheMark(to: lastLocation, with: nil)
             }
         }
     }
@@ -119,9 +233,8 @@ extension MapViewController: CLLocationManagerDelegate {
     }
     
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        if manager.authorizationStatus == .authorizedWhenInUse {
+        if manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse {
             locationManager.startUpdatingLocation()
         }
     }
-
 }
