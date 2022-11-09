@@ -10,7 +10,7 @@ import RealmSwift
 final class RealmService {
 
     static let deleteIfMigration = Realm.Configuration(deleteRealmIfMigrationNeeded: true)
-
+    
     static func save<T: Object> (
         items: [T], configuration: Realm.Configuration = deleteIfMigration, update: Realm.UpdatePolicy = .modified)
     throws {
@@ -38,6 +38,22 @@ final class RealmService {
         try realm.write {
             realm.delete(object)
         }
+    }
+    
+   static func updateObject<T>(_ object: T) throws where T: Object {
+        let realm = try Realm()
+        let result = realm.object(ofType: T.self, forPrimaryKey: object.value(forKeyPath: T.primaryKey()!) as AnyObject)
+            
+//            if let object = result {
+//                try? realm.write {
+//                    realm.add(object, update: true)
+//                }
+//            } else {
+//                let erorrDescription = PersistenceError.ErorsCodes.objectMissing
+//                throw PersistenceError(code: erorrDescription.rawValue,
+//                                       description: erorrDescription.getDescription())
+//            }
+        
     }
 
     static func get<T: Object>(

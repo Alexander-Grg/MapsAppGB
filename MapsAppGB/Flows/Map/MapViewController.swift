@@ -14,7 +14,6 @@ class MapViewController: UIViewController {
     var isFollowActive = false
     var coordinates: [AnnotationRealm] = []
     var coordinatesFromRealm: Results<AnnotationRealm>?
-    var backgroundTask: UIBackgroundTaskIdentifier = .invalid
     
     private(set) lazy var locationManager: CLLocationManager = {
         let manager = CLLocationManager()
