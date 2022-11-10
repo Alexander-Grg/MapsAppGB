@@ -38,7 +38,7 @@ class MapViewController: UIViewController {
     }()
     
     private(set) lazy var currentLocationButton: UIBarButtonItem = {
-        var buttonItem = UIBarButtonItem(image: UIImage(systemName: "location"), style: .plain, target: self, action: #selector(destinationToTheLocation))
+        var buttonItem = UIBarButtonItem(image: UIImage(systemName: "location"), style: .plain, target: self, action: #selector(self.destinationToTheLocation))
         
         return buttonItem
     }()
@@ -47,7 +47,17 @@ class MapViewController: UIViewController {
         let button = UIButton(configuration: UIButton.Configuration.borderedTinted())
         button.translatesAutoresizingMaskIntoConstraints = false
         button.setTitle("Show Previous Route", for: .normal)
-        button.addTarget(self, action: #selector(previousRoute), for: .touchUpInside)
+        button.addTarget(self, action: #selector(self.previousRoute), for: .touchUpInside)
+        
+        return button
+    }()
+    
+    private(set) lazy var exitButton: UIButton = {
+        let button = UIButton(configuration: UIButton.Configuration.borderedTinted())
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.tintColor = .red
+        button.setTitle("Exit", for: .normal)
+        button.addTarget(self, action: #selector(self.toTheExit), for: .touchUpInside)
         
         return button
     }()
@@ -75,6 +85,7 @@ class MapViewController: UIViewController {
     private func addingSubviews() {
         self.view.addSubview(mapView)
         self.view.addSubview(showPreviousRoute)
+        self.view.addSubview(exitButton)
     }
     
     private func configureConstraints() {
@@ -86,7 +97,12 @@ class MapViewController: UIViewController {
             
             showPreviousRoute.topAnchor.constraint(equalTo: view.topAnchor, constant: 0),
             showPreviousRoute.leftAnchor.constraint(equalTo: view.leftAnchor, constant: 10),
-            showPreviousRoute.rightAnchor.constraint(equalTo: view.rightAnchor, constant: -10)
+            showPreviousRoute.rightAnchor.constraint(equalTo: view.rightAnchor, constant: -10),
+            
+            exitButton.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -25),
+            exitButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            exitButton.widthAnchor.constraint(equalToConstant: 70),
+            exitButton.heightAnchor.constraint(equalToConstant: 30)
             
         ])
     }
@@ -201,6 +217,10 @@ class MapViewController: UIViewController {
         } else {
             showTheRouteThatExist()
         }
+    }
+    
+    @objc func toTheExit() {
+        self.navigationController?.popToRootViewController(animated: true)
     }
 }
 
