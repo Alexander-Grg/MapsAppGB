@@ -7,8 +7,24 @@
 
 import RealmSwift
 
-final class RealmService {
+struct PersistenceError: Error {
+    
+    enum ErorsCodes: Int {
+        case objectMissing = 0
+        
+        func getDescription() -> String {
+            switch self {
+            case .objectMissing:
+                return "Realm object is missing"
+            }
+        }
+    }
+    var code: Int
+    var description: String
+}
 
+final class RealmService {
+    
     static let deleteIfMigration = Realm.Configuration(deleteRealmIfMigrationNeeded: true)
     
     static func save<T: Object> (
@@ -20,7 +36,17 @@ final class RealmService {
             realm.add(items, update: update)
         })
     }
-
+    
+    static func saveSingleObject<T: Object> (
+        items: T, configuration: Realm.Configuration = deleteIfMigration, update: Realm.UpdatePolicy = .modified)
+    throws {
+        let realm = try Realm(configuration: configuration)
+        print(configuration.fileURL ?? "")
+        try realm.write({
+            realm.add(items, update: update)
+        })
+    }
+    
     static func load<T: Object>(typeOf: T.Type) throws -> Results<T> {
         let realm = try Realm()
         return realm.objects(T.self)
@@ -32,7 +58,7 @@ final class RealmService {
             realm.deleteAll()
         }
     }
-
+    
     static func delete<T: Object>(object: Results<T>) throws {
         let realm = try Realm()
         try realm.write {
@@ -40,22 +66,23 @@ final class RealmService {
         }
     }
     
-   static func updateObject<T>(_ object: T) throws where T: Object {
+    static func updateObject<T>(_ object: T,_ key: String) throws where T: Object {
         let realm = try Realm()
-        let result = realm.object(ofType: T.self, forPrimaryKey: object.value(forKeyPath: T.primaryKey()!) as AnyObject)
-            
-//            if let object = result {
-//                try? realm.write {
-//                    realm.add(object, update: true)
-//                }
-//            } else {
-//                let erorrDescription = PersistenceError.ErorsCodes.objectMissing
-//                throw PersistenceError(code: erorrDescription.rawValue,
-//                                       description: erorrDescription.getDescription())
-//            }
+        let result = realm.object(ofType: T.self, forPrimaryKey: key)
+        
+        
+        if let object = result {
+            try realm.write {
+                realm.add(object, update: .modified)
+            }
+        } else {
+            let erorrDescription = PersistenceError.ErorsCodes.objectMissing
+            throw PersistenceError(code: erorrDescription.rawValue,
+                                   description: erorrDescription.getDescription())
+        }
         
     }
-
+    
     static func get<T: Object>(
         type: T.Type,
         configuration: Realm.Configuration = deleteIfMigration
