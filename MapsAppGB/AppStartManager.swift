@@ -16,7 +16,8 @@ final class AppStartManager {
     }
     
     func start() {
-        let rootVC = MapViewController()
+//        let rootVC = MapViewController()
+        let rootVC = LoginViewController()
         
         let navVC = self.configuredNavigationController
         navVC.viewControllers = [rootVC]
