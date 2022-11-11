@@ -41,6 +41,8 @@ class LoginViewController: UIViewController {
         textField.borderStyle = .roundedRect
         textField.isSecureTextEntry = true
         textField.textColor = .gray
+        textField.autocorrectionType = .no
+        
         textField.translatesAutoresizingMaskIntoConstraints = false
         
         return textField
@@ -73,6 +75,7 @@ class LoginViewController: UIViewController {
     
     private func configureUI() {
         self.view.backgroundColor = .white
+        self.navigationController?.navigationBar.isHidden = true
         self.addingSubviews()
         self.configureConstraints()
     }
