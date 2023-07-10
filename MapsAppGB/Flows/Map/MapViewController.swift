@@ -74,6 +74,7 @@ class MapViewController: UIViewController {
     }
     
     private func configureUI() {
+        self.navigationController?.navigationBar.isHidden = false
         navigationItem.leftBarButtonItem = followTheLocationButton
         navigationItem.rightBarButtonItem = currentLocationButton
         self.addingSubviews()
