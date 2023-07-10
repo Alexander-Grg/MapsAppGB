@@ -1,2 +1,1 @@
 # MapsAppGB
-Educational project
